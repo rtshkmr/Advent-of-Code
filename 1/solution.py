@@ -4,8 +4,6 @@ AOC Day 1
 """
 
 __author__ = "Ritesh Kumar"
-__version__ = "0.1.0"
-__license__ = "MIT"
 
 
 def extractInputs(): 
@@ -19,10 +17,18 @@ def countSingleIncreases(inputs):
         counter += 1 if inputs[idx] > inputs[idx - 1] else 0
     return counter
 
+# returns a list of values representing sum of sliding windows of size 3:
+def mergeWindows(inputs): 
+    merged_inputs = []
+    for idx in range(len(inputs) - 2): # note the ending boundary here
+        merged_inputs.append(sum(inputs[idx:idx+3]))
+    return merged_inputs   
 
 def main():
-    answer_first = countSingleIncreases(extractInputs())
-    print(f"This be the first answer: {answer_first}")
+    inputs = extractInputs()
+    answer_first = countSingleIncreases(inputs)
+    answer_second = countSingleIncreases(mergeWindows(inputs))
+    print(f"This be the first answer: {answer_first} and this be the second answer: {answer_second}")
 
 if __name__ == "__main__":
     main()
