@@ -23,7 +23,6 @@ class BingoBoard:
             is_winning_row = len(set(row)) == 1 and self.board_lines[idx][0] == -1
             is_winning_col = len(set(col)) == 1 and self.board_lines[0][idx] == -1
             if(is_winning_col or is_winning_row):
-                print("we have ourselves a winner!")
                 self.has_won = True
                 return True
 
@@ -43,7 +42,7 @@ class BingoBoard:
 
 def init_game():
     bingo_boards = []
-    with open("sample") as f:
+    with open("input") as f:
         inputs = list(map(lambda x:(x.rstrip("\n")), f.readlines()))
     picks = inputs[0].split(",")
     board_buffer = []
@@ -60,13 +59,14 @@ def init_game():
 
 def main():
     picks, bingo_boards = init_game()
-    print("game has been init, let's pick and play!")
+    winners = []
     for pick in picks:
         for board in bingo_boards:
-            board.play_round(int(pick))
-            if board.has_won:
-                print(f"We have ourselves a winner with a score of {board.get_score()} !")
-                return
+            if not board.has_won:
+                board.play_round(int(pick))
+                if board.has_won:
+                    winners.append(board)
+    print(f"The first winning board will have a score of {winners[0].get_score()} and the last winning board will have a score of {winners[-1].get_score()}")
     return
 
 
