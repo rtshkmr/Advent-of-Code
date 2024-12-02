@@ -147,8 +147,3 @@ print(f'answer for part 1: {ans_part_1}')
 print(f'answer for part 2: {ans_part_2}')
 #+end_src
 
-#+RESULTS: Day 1
-: 11
-: 31
-: answer for part 1: 2264607
-: answer for part 2: 19457120
