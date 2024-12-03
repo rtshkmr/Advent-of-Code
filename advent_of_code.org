@@ -5,7 +5,8 @@
 * Table of Contents :TOC:
 - [[#year-2024][Year 2024]]
   - [[#tooling-info-for-this-years-advent-of-code][Tooling Info for this year's advent of code]]
-  - [[#day-1-2024-12-02-mon-edit-distance-and-similarity-score][Day 1 [2024-12-02 Mon]: Edit Distance and Similarity Score]]
+  - [[#day-1-edit-distance-and-similarity-score][Day 1: Edit Distance and Similarity Score]]
+  - [[#day-2-monotonicity][Day 2: Monotonicity]]
 
 * Year 2024
 ** Tooling Info for this year's advent of code
@@ -73,7 +74,8 @@ class Reader:
 
 #+end_src
 
-** Day 1 [2024-12-02 Mon]: Edit Distance and Similarity Score
+** Day 1: Edit Distance and Similarity Score
+[2024-12-02 Mon]
 Part 1: get edit distance
 This is about a very primitive edit-distance metric. It's all to do with numbers.
 
@@ -84,7 +86,6 @@ I think this is a good example of python's expressiveness as a language.
 #+name: Day 1
 #+begin_src python :results output
 from collections import Counter
-
 class Solution:
     def reader(self, url):
         with open(url) as f:
@@ -147,3 +148,90 @@ print(f'answer for part 1: {ans_part_1}')
 print(f'answer for part 2: {ans_part_2}')
 #+end_src
 
+** Day 2: Monotonicity
+[2024-12-02 Mon]
+Notes:
+1. python's walrus operator to set aliases is convenient!
+   * ref:
+     - assignment expressions [[https://docs.python.org/3/whatsnew/3.8.html#assignment-expressions][release doc]]
+     - assignment expressions [[https://peps.python.org/pep-0572/][PEP write-up]]
+   * e.g. used in the solution below:
+     #+begin_src python
+     part_2_ans = len([outcome for report in reports if (outcome := s.is_report_tolerably_safe(report))])
+     #+end_src
+
+
+#+begin_src python -n :results output
+class Solution:
+    def read_small(self):
+        small_input = [[7,6,4,2,1], [1,2,7,8,9], [9,7,6,2,1], [1,3,2,4,5], [8,6,4,4,1], [1,3,6,7,9] ]
+        return small_input
+
+    def read(self, url):
+        with open(url) as f:
+            data = f.read()
+            split_lines = (line.split() for line in data.split("\n"))
+            numbered_reports = []
+            for line in split_lines:
+                numbered_reports.append([int(level) for level in line])
+
+            return numbered_reports
+
+    def get_first_faulty_level_in_report(self, report):
+        num_levels = len(report)
+        if num_levels == 1:
+            return num_levels # indicates that all levels have been swept
+
+        prev_direction = None
+        for i in range(1, len(report)):
+            jump = report[i] - report[i - 1]
+            is_legal_jump = abs(jump) >= 1 and abs(jump) <= 3
+            if not is_legal_jump:
+                return i
+            if jump == 0: # not monotonically increasing, is a plateau
+                return i
+            is_same_direction = (jump >= 0) == (prev_direction >= 0) if prev_direction else True
+            if not is_same_direction:
+                return i
+            prev_direction = jump
+
+        return num_levels
+
+    def is_report_safe(self, report):
+        if not report:
+            return False
+        faulty_idx = self.get_first_faulty_level_in_report(report)
+        if faulty_idx == len(report):
+            return True
+
+        return False
+
+    def is_report_tolerably_safe(self, report):
+        if self.is_report_safe(report):
+            return True
+        for skip_idx in range(len(report)):
+            edited_report = report[:skip_idx] + report[skip_idx + 1:]
+            if self.is_report_safe(edited_report):
+                return True
+        return False
+
+s = Solution()
+small_input =  s.read_small()
+num_safe_reports = len([outcome for report in small_input if (outcome := s.is_report_safe(report))])
+print(f"small input ans 1: {num_safe_reports}")
+print(f"small input ans 2: {len([outcome for report in small_input if (outcome := s.is_report_tolerably_safe(report))])}")
+
+
+reports = s.read("./io/2024_day2_input.txt")
+part_1_ans = len([outcome for report in reports if (outcome := s.is_report_safe(report))])
+print(f"part 1 ans: {part_1_ans}")
+
+part_2_ans = len([outcome for report in reports if (outcome := s.is_report_tolerably_safe(report))])
+print(f"part 2 ans: {part_2_ans}")
+#+end_src
+
+#+RESULTS:
+: small input ans 1: 2
+: small input ans 2: 4
+: part 1 ans: 591
+: part 2 ans: 621
