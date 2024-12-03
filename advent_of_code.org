@@ -7,6 +7,7 @@
   - [[#tooling-info-for-this-years-advent-of-code][Tooling Info for this year's advent of code]]
   - [[#day-1-edit-distance-and-similarity-score][Day 1: Edit Distance and Similarity Score]]
   - [[#day-2-monotonicity][Day 2: Monotonicity]]
+  - [[#day-3-regex-based-parsing][Day 3: Regex-based Parsing]]
 
 * Year 2024
 ** Tooling Info for this year's advent of code
@@ -235,3 +236,126 @@ print(f"part 2 ans: {part_2_ans}")
 : small input ans 2: 4
 : part 1 ans: 591
 : part 2 ans: 621
+
+** Day 3: Regex-based Parsing
+Completed [2024-12-03 Tue]
+
+Approach:
+1) define the correct regex, define capture groups and use captured values for doing the math operations.
+2) I have 2 ways of doing it: A) original and menial way of defining segment buffers and operating on them and B) using a single pass regex named groups
+   A) Original Versionvalid segments are determined by =<POSITIVE><VALID_SEGMENT><POSITIVE/NEGATIVE>=
+   where:
+   + =POSITIVE=: "do"
+   + =NEGATIVE=: "don't"
+   After extracting out valid segments, parse them as though they are separate inputs to get partial sums then combine them.
+
+   B) use named groups in the regex pattern: =pattern =r"(?P<do>do\(\))|(?P<dont>don't\(\))|mul\((?P<x>\d{1,3}),(?P<y>\d{1,3})\)"=
+
+Notes:
+1. named regex groups make life easy see [[https://www.regular-expressions.info/named.html][named capture groups]]
+2. backreferences are a good regex capability as well: [[https://www.regular-expressions.info/backref.html][see backrefs]]
+
+#+begin_src python -n :results output
+import re
+
+class Solution:
+    def read_small(self):
+        input = "xmul(2,4)%&mul[3,7]!@^do_not_mul(5,5)+mul(32,64]then(mul(11,8)mul(8,5))"
+        return input
+    def read_small_2(self):
+        input = "xmul(2,4)&mul[3,7]!^don't()_mul(5,5)+mul(32,64](mul(11,8)undo()?mul(8,5))"
+        return input
+
+    def read(self, url="./io/2024_day3_input.txt"):
+        with open(url) as f:
+            data = f.read()
+
+            return data
+
+    def parse_input(self, input):
+        pattern = r"mul\((\d{1,3}),(\d{1,3})\)"
+        matches = re.findall(pattern, input)
+        partial_multiples = (int(x) * int(y) for x, y in matches)
+
+        return sum(partial_multiples)
+
+    # single-pass, uses named regex capture groups:
+    def parse_valid_segments(self, input: str) -> int:
+        # Combined regex to match mul instructions and do/don't commands
+        pattern = r"(?P<do>do\(\))|(?P<dont>don't\(\))|mul\((?P<x>\d{1,3}),(?P<y>\d{1,3})\)"
+
+        segments = []
+        is_enabled = True  # Start with multiplications enabled
+
+        for match in re.finditer(pattern, input):
+            if match.group("do"):
+                is_enabled = True
+            elif match.group("dont"):
+                is_enabled = False
+            elif match.group("x") and match.group("y"):  # Check if it's a mul instruction
+                if is_enabled:
+                    x = match.group("x")
+                    y = match.group("y")
+                    segments.append((x, y))  # Capture x and y
+
+        # Calculate partial sums from valid segments
+        partial_sums = (int(x) * int(y) for x, y in segments)
+        return sum(partial_sums)
+
+
+    # convoluted version:
+    def parse_valid_segments_(self, input):
+        input_len = len(input)
+        do_or_dont_pattern = r"do\(\)|don\'t\(\)"
+
+        # gather valid segments:
+        segments = []
+        curr_segment_start = 0
+        is_ignoring_current_segment = False
+        for match in (matches := re.finditer(do_or_dont_pattern, input)):
+            match_start, match_end = match.span()
+
+            matched_do = match.group() == "do()"
+            matched_dont = match.group() == "don't()"
+
+            if matched_do and not is_ignoring_current_segment:
+                segments.append((curr_segment_start, match_start))
+                curr_segment_start = match_end
+            if matched_do and is_ignoring_current_segment:
+                curr_segment_start = match_end
+                is_ignoring_current_segment = False
+            if matched_dont and not is_ignoring_current_segment:
+                segments.append((curr_segment_start, match_start))
+                is_ignoring_current_segment = True
+
+        # remember possible last part of the buffer:
+        should_consider_remaining_end_of_buffer = not is_ignoring_current_segment and curr_segment_start < input_len - 1
+        if should_consider_remaining_end_of_buffer:
+            segments.append((curr_segment_start, input_len))
+
+        valid_segments = (input[start:end] for start, end in segments)
+        partial_sums = (self.parse_input(segment) for segment in valid_segments)
+
+        return sum(partial_sums)
+
+s = Solution()
+small_input = s.read_small()
+print(f"small input: { small_input }")
+print(f"small input ans: {s.parse_input(small_input)}")
+
+actual_input = s.read()
+part_1_ans = s.parse_input(actual_input)
+print(f"Part 1 ans: {part_1_ans}")
+
+small_input_2 = s.read_small_2()
+small_part_2 = s.parse_valid_segments(small_input_2)
+part_2_ans = s.parse_valid_segments(actual_input)
+print(f"Part 2 ans: {part_2_ans}")
+#+end_src
+
+#+RESULTS:
+: small input: xmul(2,4)%&mul[3,7]!@^do_not_mul(5,5)+mul(32,64]then(mul(11,8)mul(8,5))
+: small input ans: 161
+: Part 1 ans: 179834255
+: Part 2 ans: 80570939
+
