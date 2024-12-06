@@ -5,9 +5,10 @@
 * Table of Contents :TOC:
 - [[#year-2024][Year 2024]]
   - [[#tooling-info-for-this-years-advent-of-code][Tooling Info for this year's advent of code]]
-  - [[#day-1-edit-distance-and-similarity-score][Day 1: Edit Distance and Similarity Score]]
-  - [[#day-2-monotonicity][Day 2: Monotonicity]]
-  - [[#day-3-regex-based-parsing][Day 3: Regex-based Parsing]]
+  - [[#day-1-historian-hysteria----edit-distance-and-similarity-score][Day 1: Historian Hysteria -- Edit Distance and Similarity Score]]
+  - [[#day-2-red-nosed-reports----monotonicity][Day 2: Red-Nosed Reports -- Monotonicity]]
+  - [[#day-3-mull-it-over----regex-based-parsing][Day 3: Mull It Over -- Regex-based Parsing]]
+  - [[#day-4-ceres-search---string-searching][Day 4: Ceres Search - String Searching]]
 
 * Year 2024
 ** Tooling Info for this year's advent of code
@@ -75,7 +76,7 @@ class Reader:
 
 #+end_src
 
-** Day 1: Edit Distance and Similarity Score
+** Day 1: Historian Hysteria -- Edit Distance and Similarity Score
 [2024-12-02 Mon]
 Part 1: get edit distance
 This is about a very primitive edit-distance metric. It's all to do with numbers.
@@ -149,7 +150,7 @@ print(f'answer for part 1: {ans_part_1}')
 print(f'answer for part 2: {ans_part_2}')
 #+end_src
 
-** Day 2: Monotonicity
+** Day 2: Red-Nosed Reports -- Monotonicity
 [2024-12-02 Mon]
 Notes:
 1. python's walrus operator to set aliases is convenient!
@@ -237,7 +238,7 @@ print(f"part 2 ans: {part_2_ans}")
 : part 1 ans: 591
 : part 2 ans: 621
 
-** Day 3: Regex-based Parsing
+** Day 3: Mull It Over -- Regex-based Parsing
 Completed [2024-12-03 Tue]
 
 Approach:
@@ -359,3 +360,261 @@ print(f"Part 2 ans: {part_2_ans}")
 : Part 1 ans: 179834255
 : Part 2 ans: 80570939
 
+** Day 4: Ceres Search - String Searching
+*** Correct Solution
+Learnings:
+1. for directions, it's easier to define the unit vectors rather than fixed-length vectors and then rely on the correct slicing logic. Should have been more plastic in my solution, and have moved away from the slicing version earlier (harder to debug).
+
+#+begin_src python :results output
+class Solution:
+    # it's easier to define directions as unit vectors
+    directions = [
+        (0, 1),   # right
+        (0, -1),  # left
+        (1, 0),   # down
+        (-1, 0),  # up
+        (1, 1),   # down-right
+        (-1, -1), # up-left
+        (1, -1),  # down-left
+        (-1, 1)   # up-right
+    ]
+    diagonals = [
+        [
+            (-1, -1), # up-left
+            (1, 1),   # down-right
+        ],
+        [
+            (1, -1),  # down-left
+            (-1, 1)   # up-right
+        ]
+
+    ]
+
+    def read_small(self):
+        input = """MMMSXXMASM
+MSAMXMSMSA
+AMXSXMAAMM
+MSAMASMSMX
+XMASAMXAMM
+XXAMMXXAMA
+SMSMSASXSS
+SAXAMASAAA
+MAMMMXMMMM
+MXMXAXMASX"""
+        matrix = [list(line) for line in input.split("\n") if line]
+        return matrix
+
+    def read_input(self, url="./io/2024_day4_input.txt"):
+        with open(url) as f:
+            input = f.read()
+            matrix = [list(line) for line in input.split("\n") if line]
+            num_rows, num_cols = len(matrix), len(matrix[0])
+            print(f"Read a matrix of shape {num_rows}x{num_cols}\n")
+
+            return matrix
+
+    def is_coord_bounded_in_matrix(self, coord, matrix):
+        r, c = coord
+        num_rows, num_cols = len(matrix), len(matrix[0])
+        return 0 <= r < num_rows and 0 <= c < num_cols
+
+    def count_xmas_word_hits(self, coord, matrix):
+        target = "XMAS"
+        r, c = coord
+        hits = 0
+
+        # Check each direction for the word "XMAS", iteratively collect chars
+        for dx, dy in self.directions:
+            chars = []
+            for i in range(len(target)):
+                new_r = r + ( i * dx )
+                new_c = c + ( i * dy )
+
+                if not self.is_coord_bounded_in_matrix((new_r, new_c), matrix):
+                    break
+
+                chars.append(matrix[new_r][new_c])
+
+            if ''.join(chars) == target:
+                hits += 1
+
+        return hits
+
+    def is_x_mas_hit(self, coord, matrix):
+        target = "MAS"
+        reversed_target = "".join(list(reversed(target)))
+        r, c = coord
+        is_hit = True
+        for vectors in self.diagonals:
+            coords = [(r + dx, c + dy)for dx, dy in vectors]
+
+            is_invalid_center_candidate = any([not self.is_coord_bounded_in_matrix(coord , matrix) for coord in coords])
+            if is_invalid_center_candidate:
+                return False
+
+            letters = [matrix[r][c] for r, c in coords]
+            word = f"{letters[0]}A{letters[1]}"
+            is_mas = ( word == target ) or ( word == reversed_target )
+            is_hit = is_hit and is_mas
+
+        return is_hit
+
+    def solve_part_1(self, matrix):
+        num_rows, num_cols = len(matrix), len(matrix[0])
+        total_hits = sum(self.count_xmas_word_hits((r, c), matrix)
+                         for r in range(num_rows)
+                         for c in range(num_cols)
+                         if matrix[r][c] == 'X')
+
+        return total_hits
+
+    def solve_part_2(self, matrix):
+        num_rows, num_cols = len(matrix), len(matrix[0])
+        hits = [True for r in range(num_rows) for c in range(num_cols)
+                if matrix[r][c] == 'A' and
+                self.is_x_mas_hit((r, c), matrix)]
+
+        return len(hits)
+
+
+
+s = Solution()
+small_input_matrix = s.read_small()
+small_ans_part_1 = s.solve_part_1(small_input_matrix)
+print(f"Small ans part 1: {small_ans_part_1}")  # Expected output: 18
+print(f"Small ans part 2: {s.solve_part_2(small_input_matrix)}")
+
+actual_input = s.read_input()
+print(f"Part 1 Ans: {s.solve_part_1(actual_input)}")
+print(f"Part 2 Ans: {s.solve_part_2(actual_input)}")
+#+end_src
+
+#+RESULTS:
+: Small ans part 1: 18
+: Small ans part 2: 9
+: Read a matrix of shape 140x140
+:
+: Part 1 Ans: 2414
+: Part 2 Ans: 1871
+
+
+
+*** Incorrect attempt for part 1
+This version did some undercounting. It would work on the small input example but not on the actual text input.
+
+So this version is unnecessarily complicated because:
+1. it relied heavily on correct slicing logic. On hindsight, it's easier to just rely on unit vectors for direction and iteratively collect the slice.
+2. the backward slice was likely to be the cause of the undercounting
+
+#+begin_src python :results output
+class Solution:
+    directions = [ #inclusive range
+            (-3, 0), # top
+            (3, 0), # bottom
+            (0, 3), # right
+            (0, -3), # left
+            (-3, -3), # top left
+            (3, -3), # bottom left
+            (-3, 3), # top right
+            (3, 3), # bottom right
+    ]
+
+    def read_small(self):
+        input = """MMMSXXMASM
+MSAMXMSMSA
+AMXSXMAAMM
+MSAMASMSMX
+XMASAMXAMM
+XXAMMXXAMA
+SMSMSASXSS
+SAXAMASAAA
+MAMMMXMMMM
+MXMXAXMASX"""
+        matrix = [list(line) for line in input.split("\n") if line]
+        num_rows, num_cols = len(matrix), len(matrix[0])
+        print(f"Read a matrix of shape {num_rows}x{num_cols}\n")
+
+        return matrix
+
+    def read_input(self, url="./io/2024_day4_input.txt"):
+        with open(url) as f:
+            input = f.read()
+            matrix = [list(line) for line in input.split("\n") if line]
+            num_rows, num_cols = len(matrix), len(matrix[0])
+            print(f"Read a matrix of shape {num_rows}x{num_cols}\n")
+
+            return matrix
+
+    def is_coord_bounded_in_matrix(self, coord, matrix):
+        r, c = coord
+        num_rows, num_cols = len(matrix), len(matrix[0])
+
+        return r >= 0 and r < num_rows and c >= 0 and c < num_cols
+
+
+    def count_xmas_word_hits(self, coord, matrix):
+        target ="XMAS"
+        r, c = coord
+        hits = 0
+
+        for direction in self.directions:
+            dx, dy = direction
+            end_coord = (r + dx, c + dy)
+            if not self.is_coord_bounded_in_matrix(end_coord, matrix):
+                continue
+
+            match direction:
+                case (x, 0): # it's a column slice
+                    rows_slice = matrix[r: r + dx + 1] if dx > 0 else matrix[r: r + dx - 1: -1]
+                    slice = "".join((row[c] for row in rows_slice))
+                    # print(f"==> COLUMN SLICE {direction} \n\
+                    # sliced out {len(rows_slice)} rows for column slicing\n\
+                    # slice = {slice}")
+                    hits += 1 if slice == target else 0
+
+                case (0, y): # it's a row slice:
+                    row = matrix[r]
+                    slice = "".join(row[c: c + dy + 1] if dy > 0 else row[c:c + dy - 1:-1])
+                    # print(f"==> ROW SLICE {direction} \n\
+                    # slice = {slice}")
+                    hits += 1 if slice == target else 0
+
+                case _: # it's a diagonal slice:
+                    rows_slice = matrix[r: r + dx + 1] if dx > 0 else matrix[r: r + dx - 1: -1]
+                    dy_direction = 1 if dy > 0 else -1
+
+                    curr_col = c
+                    cells = []
+                    for row in rows_slice:
+                        # print(f"cell: ({row}, {curr_col}) {row[curr_col]}")
+                        cells.append(row[curr_col])
+                        curr_col += dy_direction
+                    slice = "".join(cells)
+
+                    # print(f"==> DIAGONAL SLICE {direction} \n\
+                    # sliced out {len(rows_slice)} rows for column slicing\n\
+                    # slice = {slice}")
+
+                    hits += 1 if slice == target else 0
+
+        return hits
+
+    def solve_part_1(self, matrix):
+        num_rows, num_cols = len(matrix), len(matrix[0])
+        print(f"SEE ME: num rows = {num_rows}, num_cols={num_cols}")
+        possible_hits = [self.count_xmas_word_hits((r, c), matrix) for r in range(num_rows) for c in range(num_cols) if matrix[r][c] == "X"]
+
+        print(f"cells investigated: {len(list(possible_hits))}")
+        return sum(possible_hits)
+
+
+s = Solution()
+small_input_matrix = s.read_small()
+[print(r) for r in small_input_matrix]
+small_ans_part_1 = s.solve_part_1(small_input_matrix)
+print(f"Small ans part 1 {small_ans_part_1}")
+
+actual_input = s.read_input()
+ans_part_1 = s.solve_part_1(actual_input)
+print(f"Part 1 {ans_part_1}")
+#+end_src
