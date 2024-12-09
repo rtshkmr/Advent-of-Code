@@ -9,6 +9,7 @@
   - [[#day-2-red-nosed-reports----monotonicity][Day 2: Red-Nosed Reports -- Monotonicity]]
   - [[#day-3-mull-it-over----regex-based-parsing][Day 3: Mull It Over -- Regex-based Parsing]]
   - [[#day-4-ceres-search---string-searching][Day 4: Ceres Search - String Searching]]
+  - [[#day-5-print-queue---sorting][Day 5: Print Queue - Sorting]]
 
 * Year 2024
 ** Tooling Info for this year's advent of code
@@ -378,8 +379,7 @@ class Solution:
         (1, -1),  # down-left
         (-1, 1)   # up-right
     ]
-    diagonals = [
-        [
+    diagonals = [[
             (-1, -1), # up-left
             (1, 1),   # down-right
         ],
@@ -415,8 +415,7 @@ MXMXAXMASX"""
 
     def is_coord_bounded_in_matrix(self, coord, matrix):
         r, c = coord
-        num_rows, num_cols = len(matrix), len(matrix[0])
-        return 0 <= r < num_rows and 0 <= c < num_cols
+        num_rows, num_cols = len(matrix), len(matrix[0]) return 0 <= r < num_rows and 0 <= c < num_cols
 
     def count_xmas_word_hits(self, coord, matrix):
         target = "XMAS"
@@ -496,8 +495,6 @@ print(f"Part 2 Ans: {s.solve_part_2(actual_input)}")
 :
 : Part 1 Ans: 2414
 : Part 2 Ans: 1871
-
-
 
 *** Incorrect attempt for part 1
 This version did some undercounting. It would work on the small input example but not on the actual text input.
@@ -618,3 +615,162 @@ actual_input = s.read_input()
 ans_part_1 = s.solve_part_1(actual_input)
 print(f"Part 1 {ans_part_1}")
 #+end_src
+
+
+** Day 5: Print Queue - Sorting
+:LOGBOOK:
+CLOCK: [2024-12-09 Mon 07:23]--[2024-12-09 Mon 09:09] =>  1:46
+:END:
+[2024-12-09 Mon]
+
+[Learnings:]
+1. python ordering in the modern version is always key-based. So it's an accessor pattern that the =key= arg consumes.
+   The older way used to be to provide a comparator function (Java-style).
+
+   So, to use the old way, use =functools.cmp_to_key=.
+   When defining the comparator, remember that default sorting is always in ascending order. So if x comes after y, then comparator should return 1, if x comes before y comparator should return -1; 0 otherwise
+
+
+[Solution Approach:]
+The first part has inputs that contain 2 info:
+1. the ordering rules
+2. multiple ordering configuration
+
+The rules define before and after, and my intial thought was to use a topo-sort approach on this.
+Realised that it wouldn't be that helpful to do quicker lookups since it's going to require us to iterate through a path of the toposort graph.
+
+So, for part 1 the approach shall be:
+1. ingest the rules definition and create a rules map.
+   We keep rules using a map of sets.
+   For each number e.g. 12,
+   * we have to keep numbers that come after it => use the key = 12
+   * we have to keep numbers that come before it ==> use the key = -12
+2. When checking if the order is correct, we check if union or not.
+   for each element, i in the order:
+   * every element before it should appear in the prefix set for that element
+   * every element after it should appear in the suffix set for that element
+   * every element after it should NOT appear in the prefix set
+   * every element before it should NOT appear in the suffix set
+
+
+So for part 2, it's a natural extension of part 1:
+1. for the bad updates, try to fix them
+
+So this requires a sorting to be done, but using a custom comparator. The custom comparator part requires a functool ([[https://docs.python.org/3/howto/sorting.html#comparison-functions][ref python docs]])
+
+#+begin_src python :results output
+from collections import defaultdict
+from functools import cmp_to_key
+
+class Solution:
+    def read_input(self, url="./io/2024_day5_input.txt"):
+        with open(url) as f:
+            input = f.read()
+            return input
+
+    def parse_input_data(self, data="""47|53
+97|13
+97|61
+97|47
+75|29
+61|13
+75|53
+29|13
+97|29
+53|29
+61|53
+97|53
+61|29
+47|13
+75|47
+97|75
+47|61
+75|61
+47|29
+75|13
+53|13
+
+75,47,61,53,29
+97,61,53,29,13
+75,29,13
+75,97,47,61,53
+61,13,29
+97,13,75,29,47"""):
+        data = data.strip()
+        rules_def, orders_def = data.split("\n\n")
+        rules = rules_def.split("\n")
+        orders = orders_def.split("\n")
+
+        rules_map = defaultdict(set)
+        for rule_def in rules:
+            before, after = (int(x) for x in rule_def.split("|"))
+            rules_map[before].add(after)
+            rules_map[-after].add(before)
+
+        parsed_orders = []
+        for order_def in orders:
+            parsed_orders.append([int(n) for n in order_def.split(",")])
+
+        return rules_map, parsed_orders
+
+    def is_order_legal(self, order, rules):
+        is_legal_order = True
+
+        for idx, page in enumerate(order):
+            preceding_pages = order[:idx]
+            following_pages = order[idx + 1:]
+
+            is_preceding_pages_legal = all((before_page in rules[-page] and before_page not in rules[page] for before_page in preceding_pages))
+
+            is_following_pages_legal = all((after_page in rules[page] and after_page not in rules[-page] for after_page in following_pages))
+
+            is_legal_order = is_legal_order and is_preceding_pages_legal and is_following_pages_legal
+
+        return is_legal_order
+
+    def solve_part_1(self, rules, orders):
+        partial_vals = []
+
+        # ASSUMPTION: there are no even_length lists?
+        return sum(order[len(order) // 2]
+                   for order in orders
+                   if self.is_order_legal(order, rules))
+
+    def solve_part_2(self, rules, orders):
+        erroneous_orders = (order for order in orders if not self.is_order_legal(order, rules))
+
+        def comparator(x, y):
+            # NOTE: default order for sorting is in ascending order
+            # So if x comes after y ==> it's 1
+            # if x comes before y ==> it's -1
+            # if tie then 0
+            is_x_after_y = x in rules[y]
+            if is_x_after_y: #
+                return 1
+
+            is_x_before_y = x in rules[-y]
+            if is_x_before_y:
+                return -1
+
+            return 0
+
+        corrected_orders = (sorted(order, key=cmp_to_key(comparator) ) for order in erroneous_orders)
+
+        return sum(order[len(order) // 2] for order in corrected_orders)
+
+
+
+s = Solution()
+small_input = s.parse_input_data()
+actual_input = s.parse_input_data(s.read_input())
+print(f"part 1 example ans: {s.solve_part_1(*small_input)}")
+print(f"part 1 ans: {s.solve_part_1(*actual_input)}")
+print(f"part 2 example ans: {s.solve_part_2(*small_input)}")
+print(f"part 2 ans: {s.solve_part_2(*actual_input)}")
+#+end_src
+
+#+RESULTS:
+: part 1 example ans: 143
+: part 1 ans: 7024
+: part 2 example ans: 123
+: part 2 ans: 4151
