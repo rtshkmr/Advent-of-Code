@@ -10,6 +10,7 @@
   - [[#day-3-mull-it-over----regex-based-parsing][Day 3: Mull It Over -- Regex-based Parsing]]
   - [[#day-4-ceres-search---string-searching][Day 4: Ceres Search - String Searching]]
   - [[#day-5-print-queue---sorting][Day 5: Print Queue - Sorting]]
+  - [[#incomplete-part-2-day-6-guard-gallivant---turtlebot-path-tracking][[incomplete part 2] Day 6: Guard Gallivant - TurtleBot Path Tracking]]
 
 * Year 2024
 ** Tooling Info for this year's advent of code
@@ -774,3 +775,256 @@ print(f"part 2 ans: {s.solve_part_2(*actual_input)}")
 : part 1 ans: 7024
 : part 2 example ans: 123
 : part 2 ans: 4151
+
+** [incomplete part 2] Day 6: Guard Gallivant - TurtleBot Path Tracking
+last attempted [2024-12-16 Mon], might come back to this eventually, let's skip this
+
+Notes:
+[Part 1]
+1. from input we need to grok the following:
+   a. guard_start_coord
+   b. obstacle_coords
+   c. map dimensions
+   we don't need to keep track of the entire cartesian plane, just the obstacles and boundaries
+2. auxiliary info needed:
+   1. visited_coord set --> so that you don't double count the positions
+   2. visited_positions counter
+
+edge cases / mistakes:
+  * though the input doesn't include it, the traversal algo should detect cycles and avoid infinite recursion.
+  * I had a silly off-by-one-error because of my =is_bounded()= fn.
+
+
+
+[Part 2]
+1. it's about creating cycles.
+   We could improve our current path simulation to add in cycle-detection
+   To do cycle detection, we can keep a count of duplicate cells encountered.
+   If num_duplicates > total number of cells then it's a cycle
+
+2. For the possible places, we can have candidates for where we can add the obstruction, and we just simulate to check if a cycle is detected, assuming that obstruction is pushed into my list of obstacles
+
+^ following this is basically a brute-force approach and is it some ungodly polynomial time (actually tried it, took about 15mins of running the brute-force version), so we explore improvements:
+
+Some observations:
+1. we can likely do a single pass, because at any one point, if there was a new obstacle infront of a current cell, then the guard would turn and keep going until he goes back to a similar loop as before.
+2. from 1, only cummulative history matters
+3. rules for valid "new obstacle",
+   - doesn't have any original obstacle between the current cell and it
+   - can create loop with history so far
+   Note that to find a loop, we don't just check immediate adjacent cell from current, but all the cells in the vertical/horizontal
+
+#+begin_src python :results output
+from collections import defaultdict
+
+class Solution():
+    next_direction = {
+            "^":">",
+            "v": "<",
+            "<": "^",
+            ">": "v"
+    }
+
+    def read_input(self, url="./io/2024_day6_input.txt"):
+        with open(url) as f:
+            input = f.read()
+            return input
+
+
+    def parse_input(self, input="""....#.....
+.........#
+..........
+..#.......
+.......#..
+..........
+.#..^.....
+........#.
+#.........
+......#..."""):
+        lines = input.strip().split("\n")
+
+        guard_start_info = None
+        obstacles = []
+
+        num_rows = len(lines)
+        for row_idx, row in enumerate(lines):
+            num_cols = len(row)
+            for col_idx, cell_val in enumerate(row):
+                coord = (row_idx, col_idx)
+                match cell_val:
+                    case "#":
+                        obstacles.append((row_idx, col_idx))
+                    case "^" | "<" | ">" | "v":
+                        guard_start_info = ((row_idx, col_idx), cell_val) # coordinate and direction
+                    case ".":
+                        continue
+
+        map_dims = (num_rows, num_cols)
+
+        return {
+            "map_dims": map_dims,
+            "obstacles": obstacles,
+            "guard_start_info": guard_start_info
+        }
+
+    def is_coord_in_map(self, coord, map_dims):
+        num_rows, num_cols = map_dims
+        r, c = coord
+
+        return r >=0 and r < num_rows and c >= 0 and c < num_cols
+
+    def get_next_cell(self, curr_cell, direction):
+        curr_row, curr_col = curr_cell
+        match direction:
+             case "^":
+                 next_cell = (curr_row - 1, curr_col)
+             case "v":
+                 next_cell = (curr_row + 1, curr_col)
+             case "<":
+                 next_cell = (curr_row, curr_col - 1)
+             case ">":
+                 next_cell = (curr_row, curr_col + 1)
+
+        return next_cell
+
+    def turn(self, direction):
+        return self.next_direction[direction]
+
+    def is_point_between(self, a, b, test):
+        """
+        Check if the point 'test' is within the bounding box defined by points 'a' and 'b'.
+        """
+        x1, y1 = a
+        x2, y2 = b
+        test_x, test_y = test
+
+        return (min(x1, x2) <= test_x <= max(x1, x2)) and (min(y1, y2) <= test_y <= max(y1, y2))
+
+    def can_create_loop(self, current_cell, current_direction, obstacles, visited):
+        """
+        Given the current cell, it would have a current direction and the next cell in that direction may be a candidate for a new obstacle.
+
+        Suppose we turned (and hence are facing direction = turned_direction), then to create a loop, we just have to find from within the visited history, a cell in that same direction.
+
+        from current cell, we have a row_idx, col_idx, for the current direction.
+
+        Based on the direction, we just need a match:
+        if ^ then have to be same col and row_idx less than curr
+        if v then have to be same col and row_idx more than curr
+        if < then have to be same row and col_idx is less than
+        if > then have to be same row and col_idx is more than
+
+        There may be NO obstacles in the middle of the two
+        """
+        obstacle_candidate_coord = self.get_next_cell(current_cell, current_direction)
+
+        if (obstacle_candidate_coord in obstacles):
+            return False
+
+        turned_direction = self.next_direction[current_direction]
+        row_idx, col_idx = current_cell
+
+        has_obstacle_in_the_middle = lambda curr_coord, matching_coord: any((True for obstacle in obstacles if self.is_point_between(matching_coord, current_cell, obstacle)))
+
+        match_fn = {
+            "^": lambda r, c: c == col_idx and r < row_idx,
+            "v": lambda r, c: c == col_idx and r > row_idx,
+            "<": lambda r, c: r == row_idx and c < col_idx,
+            ">": lambda r, c: r == row_idx and c > col_idx
+        }
+
+        matches = [
+            matching_coord for matching_coord in visited.keys()
+                if match_fn[turned_direction](*matching_coord) and
+                        turned_direction in visited[matching_coord] and
+                        not has_obstacle_in_the_middle(current_cell, matching_coord)
+             ]
+
+        return len(matches) > 0
+
+    def simulate_guard_path(self, input_info):
+
+        map_dims = input_info.get("map_dims")
+        total_cells = map_dims[0] * map_dims[1]
+
+        obstacles = input_info.get("obstacles")
+
+        guard_start_coord, current_direction = input_info.get("guard_start_info")
+        guard_coord = guard_start_coord
+
+        visited = defaultdict(set)
+        new_obstacle_candidates = set()
+        num_turns = 0
+        repeat_visits = 0
+        has_detected_cycle = False
+
+        while is_guard_on_map:= self.is_coord_in_map(guard_coord, map_dims):
+            if (is_repeat_visit:= len(visited[guard_coord]) > 0):
+                repeat_visits += 1
+
+            if (has_detected_cycle:= repeat_visits > total_cells + 1):
+                print("CYCLE FOUND")
+                break
+
+            next_cell = self.get_next_cell(guard_coord, current_direction)
+            turned_direction = self.next_direction[current_direction]
+            turned_next_cell = self.get_next_cell(guard_coord, turned_direction)
+
+
+            # mark cell as visited:
+            visited[guard_coord].add(current_direction)
+
+            if (self.is_coord_in_map(next_cell, map_dims) and
+                next_cell != guard_start_coord and
+                self.can_create_loop(guard_coord, current_direction, obstacles, visited)):
+
+                new_obstacle_candidates.add(next_cell)
+
+            if (is_blocked_by_obstacle:= next_cell in obstacles):
+                current_direction = turned_direction
+                next_cell = turned_next_cell
+                num_turns += 1
+
+            guard_coord = next_cell
+
+        return has_detected_cycle, visited, new_obstacle_candidates
+
+s = Solution()
+actual_input = s.read_input()
+example_parsed_info = s.parse_input()
+parsed_info = s.parse_input(actual_input)
+
+
+is_cyclic, visited, obstacle_candidates = s.simulate_guard_path(example_parsed_info)
+print(f"example part 1: is_cyclic_simulation? {is_cyclic} # visited = {len([k for k, v in visited.items() if v])} # obstacle candidates: {len(obstacle_candidates)}")
+
+is_cyclic, visited, obstacle_candidates = s.simulate_guard_path(parsed_info)
+print(f"actual ans: is_cyclic = {is_cyclic}, # visited = {len(visited)} # obstacle candidates: {len(obstacle_candidates)}")
+#+end_src
+
+#+RESULTS:
+: example part 1: is_cyclic_simulation? False # visited = 41 # obstacle candidates: 6
+: actual ans: is_cyclic = False, # visited = 5030 # obstacle candidates: 422
+
+Here's the brute-force approach to part 2:
+#+begin_src python :results output
+    # brute-forced, my initial answer was 1909 from this, somehow it's incorrect, says that ans applies for a different input(?)
+    def get_obstruction_locations(self, input_info):
+        print(input_info.keys())
+        num_rows, num_cols = map_dims = input_info.get("map_dims")
+        guard_start_coord, _= guard_start_info = input_info.get("guard_start_info")
+        obstacles = input_info.get("obstacles")
+
+        reserved_locations = set(obstacles)
+        reserved_locations.add(guard_start_coord)
+        obstruction_candidates = ((row_idx, col_idx) for row_idx in range(num_rows) for col_idx in range(num_cols) if (row_idx, col_idx) not in reserved_locations)
+
+        valid_locations = [candidate for candidate in obstruction_candidates if (is_cyclic:= self.simulate_guard_path({
+            "map_dims": map_dims,
+            "obstacles": obstacles + [candidate],
+            "guard_start_info": guard_start_info
+        })[0])]
+
+        return valid_locations
+#+end_src
+
